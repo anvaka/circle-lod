@@ -1,0 +1,19 @@
+{
+  "name": "circle-lod",
+  "version": "1.0.0",
+  "description": "Level of detail alrightm to render millions of circles",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "lod",
+    "circles"
+  ],
+  "author": "Andrei Kashcha",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/anvaka/circle-lod"
+  }
+}
