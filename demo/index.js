@@ -7,7 +7,7 @@ var scene = document.getElementById('scene');
 var _ = require('lodash');
 var createProrityQueue = require('./lib/priorityQueue.js');
 
-var fname = 'positions2d.bin';
+var fname = 'positions.bin.2d';// 'positions2d.bin';
 request(fname, {
     responseType: 'arraybuffer',
 })
@@ -187,37 +187,39 @@ function accumulateRanks(quad, left, top, right, bottom) {
 
   // For internal nodes, accumulate ranks from child quadrants.
   if (quad.length) {
-    quad.largest = createProrityQueue(quadRadiusComparator, 5);
+    var maxR = -1;
+    var largest;
 
     for (i = 0; i < 4; ++i) {
       if ((q = quad[i])) {
         area += q.area;
-        quad.largest.merge(q.largest);
+        if (q.largest.data.r > maxR) {
+          maxR = q.largest.data.r;
+          largest = q.largest;
+        }
       }
     }
-    var largest = quad.largest.peek();
+    quad.largest = largest;
 
     quad.x = largest.x;
     quad.y = largest.y;
   } else {
     q = quad;
-    q.largest = createProrityQueue(quadRadiusComparator, 5);
+    var largest = quad;
 
     do {
       area += Math.PI * q.data.r * q.data.r;
-      quad.largest.push(q);
+      if (q.data.r > largest.data.r) {
+        largest = q;
+      }
     } while (q = q.next);
 
-    var largest = quad.largest.peek();
+    quad.largest = largest;
     quad.x = largest.data.x;
     quad.y = largest.data.y;
   }
 
   quad.area = area;
-}
-
-function quadRadiusComparator(a, b) {
-  return a.data.r > b.data.r;
 }
 
 function quadAreaComparator(a, b) {
