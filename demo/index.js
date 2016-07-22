@@ -2,7 +2,7 @@ var svg = require('simplesvg');
 var panzoom = require('panzoom');
 var quadtree = require('d3-quadtree').quadtree;
 var request = require('./lib/request.js');
-var maxNodes = 1000;
+var maxNodes = 4096;
 var scene = document.getElementById('scene');
 var _ = require('lodash');
 
@@ -59,13 +59,15 @@ function rerender(points) {
   points.forEach(renderPoint);
 
   function renderPoint(quad) {
+    var r = Math.sqrt(quad.area / Math.PI);
+    r = Math.max(5, r);
+
     scene.appendChild(svg('circle', {
       cx: quad.x,
       cy: quad.y,
-      r: Math.max(quad.value, 5),
+      r: r,
       stroke: 'black',
       'stroke-width': 1,
-      //fill: 'transparent'
     }));
   }
 }
@@ -81,33 +83,41 @@ function getTop(tree, rect) {
   var root = tree.root();
   root.level = 0;
 
-  console.log(root);
   points.push(root);
-  console.log(intersects(root, rect));
-  var maxLevel = 0;
+  var candidatesAdded = true;
 
-  while(points.length < maxNodes) {
-    var splitCandidate = popNodeWithHighestValue(points);
-    if (!splitCandidate) {
-      // if we have no more split candidates - we are done.
-      return points;
-    }
-
-    for (var i = 0; i < 4; ++i) {
-      var child = splitCandidate[i];
-      if (intersects(child, rect)) {
-        var newLevel = splitCandidate.level + 1;
-        child.level = newLevel;
-        if (newLevel > maxLevel) {
-          maxLevel = newLevel;
-        }
-        // todo: this should be priority queue
-        points.push(child);
-      }
-    }
+  while ((points.length < maxNodes) && candidatesAdded) {
+    candidatesAdded = findAndAppendCandidates(points);
   }
 
+  // one more run gives smoother approximation
+  findAndAppendCandidates(points);
+
   return points;
+
+  function findAndAppendCandidates(queue) {
+    var candidates = popNodesWithHighestValue(queue);
+    if (!candidates || candidates.length === 0) {
+      // if we have no more split candidates - we are done.
+      return false;
+    }
+
+    appendCandidates(candidates, queue);
+
+    return true;
+  }
+
+  function appendCandidates(candidates, queue) {
+    candidates.forEach(function(splitCandidate) {
+      for (var i = 0; i < 4; ++i) {
+        var child = splitCandidate[i];
+        if (intersects(child, rect)) {
+          // todo: this should be priority queue
+          queue.push(child);
+        }
+      }
+    });
+  }
 }
 
 function intersects(a, b) {
@@ -119,9 +129,8 @@ function intersects(a, b) {
           b.top <= a.bottom)
 }
 
-function popNodeWithHighestValue(array) {
+function popNodesWithHighestValue(array) {
   var max = Number.NEGATIVE_INFINITY;
-  var idx = -1;
 
   for (var i = 0; i < array.length; ++i) {
     var node = array[i];
@@ -130,25 +139,26 @@ function popNodeWithHighestValue(array) {
       continue;
     }
 
-    if (node.value > max) {
-      idx = i;
-      max = node.value;
+    if (node.area > max) {
+      max = node.area;
     }
   }
 
-  if (idx < 0) return; // no more nodes here.
+  if (max === Number.NEGATIVE_INFINITY) return; // no more nodes here.
 
-  if (idx === array.length - 1) {
-    return array.pop();
+  var firstIdx = 0;
+  for (var i = 0; i < array.length; ++i) {
+    var node = array[i];
+    if (node.area === max) {
+      var first = array[firstIdx];
+      var node = array[i];
+      array[i] = first;
+      array[firstIdx] = node;
+      firstIdx += 1;
+    }
   }
 
-  // just swap our max node with pop candidate
-  var last = array[array.length - 1];
-  var node = array[idx];
-  array[idx] = last;
-  array.pop();
-
-  return node;
+  return array.splice(0, firstIdx);
 }
 
 
@@ -174,7 +184,7 @@ function x(n) { return n.x; }
 function y(n) { return n.y; }
 
 function accumulateRanks(quad, left, top, right, bottom) {
-  var strength = 0, q, c, x, y, i;
+  var area = 0, q, c, x, y, i;
 
   // TODO: This is bad idea. Either don't use d3's quad tree or find another way.
   quad.left = left;
@@ -185,20 +195,20 @@ function accumulateRanks(quad, left, top, right, bottom) {
   // For internal nodes, accumulate ranks from child quadrants.
   if (quad.length) {
     for (x = y = i = 0; i < 4; ++i) {
-      if ((q = quad[i]) && (c = q.value)) {
-        strength += c, x += c * q.x, y += c * q.y;
+      if ((q = quad[i]) && (c = q.area)) {
+        area += c, x += c * q.x, y += c * q.y;
       }
     }
-    quad.x = x / strength;
-    quad.y = y / strength;
+    quad.x = x / area;
+    quad.y = y / area;
   } else {
     // For leaf nodes, accumulate ranks from coincident quadrants.
     q = quad;
     q.x = q.data.x;
     q.y = q.data.y;
-    do strength += q.data.r;
+    do area += Math.PI * q.data.r * q.data.r;
     while (q = q.next);
   }
 
-  quad.value = strength;
+  quad.area = area;
 }
