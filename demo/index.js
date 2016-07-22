@@ -5,6 +5,7 @@ var request = require('./lib/request.js');
 var maxNodes = 4096;
 var scene = document.getElementById('scene');
 var _ = require('lodash');
+var createProrityQueue = require('./lib/priorityQueue.js');
 
 var fname = 'positions2d.bin';
 request(fname, {
@@ -49,14 +50,16 @@ function render(tree) {
 
   function renderOnce() {
     var rect = getVisibleRect()
-    var points = getTop(tree, rect);
-    rerender(points);
+    console.time('best search')
+    var topQuads = getTopQuads(tree, rect);
+    console.timeEnd('best search')
+    rerender(topQuads);
   }
 }
 
-function rerender(points) {
+function rerender(topQuads) {
   clearScene();
-  points.forEach(renderPoint);
+  topQuads.forEach(renderPoint);
 
   function renderPoint(quad) {
     var r = Math.sqrt(quad.area / Math.PI);
@@ -78,25 +81,26 @@ function clearScene() {
   }
 }
 
-function getTop(tree, rect) {
-  var points = []; // todo: this can be changed to prioritized array
-  var root = tree.root();
-  root.level = 0;
+function getTopQuads(tree, rect) {
+  var quadsPriorityQueue = createProrityQueue(quadAreaComparator);
 
-  points.push(root);
+  var root = tree.root();
+
+  quadsPriorityQueue.push(root);
+
   var candidatesAdded = true;
 
-  while ((points.length < maxNodes) && candidatesAdded) {
-    candidatesAdded = findAndAppendCandidates(points);
+  while ((quadsPriorityQueue.length < maxNodes) && candidatesAdded) {
+    candidatesAdded = findAndAppendCandidates(quadsPriorityQueue);
   }
 
   // one more run gives smoother approximation
-  findAndAppendCandidates(points);
+  findAndAppendCandidates(quadsPriorityQueue);
 
-  return points;
+  return quadsPriorityQueue;
 
   function findAndAppendCandidates(queue) {
-    var candidates = popNodesWithHighestValue(queue);
+    var candidates = popNodesWithLargestArea(queue);
     if (!candidates || candidates.length === 0) {
       // if we have no more split candidates - we are done.
       return false;
@@ -105,18 +109,19 @@ function getTop(tree, rect) {
     appendCandidates(candidates, queue);
 
     return true;
-  }
 
-  function appendCandidates(candidates, queue) {
-    candidates.forEach(function(splitCandidate) {
+    function appendCandidates(candidates) {
+      candidates.forEach(appendCandidate);
+    }
+
+    function appendCandidate(splitCandidate) {
       for (var i = 0; i < 4; ++i) {
         var child = splitCandidate[i];
         if (intersects(child, rect)) {
-          // todo: this should be priority queue
           queue.push(child);
         }
       }
-    });
+    }
   }
 }
 
@@ -129,36 +134,24 @@ function intersects(a, b) {
           b.top <= a.bottom)
 }
 
-function popNodesWithHighestValue(array) {
-  var max = Number.NEGATIVE_INFINITY;
+function popNodesWithLargestArea(queue) {
+  var maxElement = queue.peek();
+  if (!maxElement) return;
+  // if the biggest node is a leaf - cannot pop anymore
+  if (!maxElement.length) return;
 
-  for (var i = 0; i < array.length; ++i) {
-    var node = array[i];
-    if (!node.length) {
-      // we only consider internal nodes and ignore leafs.
-      continue;
-    }
+  // now we are free to remove the biggest one.
+  queue.pop();
 
-    if (node.area > max) {
-      max = node.area;
-    }
+  var result = [maxElement];
+  var nextBest = queue.peek();
+
+  while (nextBest && nextBest.length && nextBest.area === maxElement.area) {
+    result.push(queue.pop());
+    nextBest = queue.peek();
   }
-
-  if (max === Number.NEGATIVE_INFINITY) return; // no more nodes here.
-
-  var firstIdx = 0;
-  for (var i = 0; i < array.length; ++i) {
-    var node = array[i];
-    if (node.area === max) {
-      var first = array[firstIdx];
-      var node = array[i];
-      array[i] = first;
-      array[firstIdx] = node;
-      firstIdx += 1;
-    }
-  }
-
-  return array.splice(0, firstIdx);
+  //
+  return result;
 }
 
 
@@ -184,9 +177,9 @@ function x(n) { return n.x; }
 function y(n) { return n.y; }
 
 function accumulateRanks(quad, left, top, right, bottom) {
-  var area = 0, q, c, x, y, i;
+  var area = 0, q, i;
 
-  // TODO: This is bad idea. Either don't use d3's quad tree or find another way.
+  // TODO: This is a bad idea. Either don't use d3's quad tree or find another way.
   quad.left = left;
   quad.top = top;
   quad.right = right;
@@ -194,21 +187,46 @@ function accumulateRanks(quad, left, top, right, bottom) {
 
   // For internal nodes, accumulate ranks from child quadrants.
   if (quad.length) {
-    for (x = y = i = 0; i < 4; ++i) {
-      if ((q = quad[i]) && (c = q.area)) {
-        area += c, x += c * q.x, y += c * q.y;
+    quad.largest = createProrityQueue(quadRadiusComparator, 5);
+
+    for (i = 0; i < 4; ++i) {
+      if ((q = quad[i])) {
+        area += q.area;
+        quad.largest.merge(q.largest);
       }
     }
-    quad.x = x / area;
-    quad.y = y / area;
+    var largest = quad.largest.peek();
+
+    quad.x = largest.x;
+    quad.y = largest.y;
   } else {
-    // For leaf nodes, accumulate ranks from coincident quadrants.
     q = quad;
-    q.x = q.data.x;
-    q.y = q.data.y;
-    do area += Math.PI * q.data.r * q.data.r;
-    while (q = q.next);
+    q.largest = createProrityQueue(quadRadiusComparator, 5);
+
+    do {
+      area += Math.PI * q.data.r * q.data.r;
+      quad.largest.push(q);
+    } while (q = q.next);
+
+    var largest = quad.largest.peek();
+    quad.x = largest.data.x;
+    quad.y = largest.data.y;
   }
 
   quad.area = area;
+}
+
+function quadRadiusComparator(a, b) {
+  return a.data.r > b.data.r;
+}
+
+function quadAreaComparator(a, b) {
+  // make sure internal nodes are always larger than leafs.
+  if (b.length && !a.length) {
+    return false;
+  } else if (a.length && !b.length) {
+    return true;
+  }
+
+  return a.area > b.area;
 }
