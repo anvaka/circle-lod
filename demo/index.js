@@ -82,7 +82,7 @@ function clearScene() {
 }
 
 function getTopQuads(tree, rect) {
-  var quadsPriorityQueue = createProrityQueue(quadAreaComparator);
+  var quadsPriorityQueue = createProrityQueue(quadAreaComparator, maxNodes * 5);
 
   var root = tree.root();
 
