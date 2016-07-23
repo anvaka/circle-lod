@@ -7,7 +7,7 @@ var scene = document.getElementById('scene');
 var _ = require('lodash');
 var createProrityQueue = require('./lib/priorityQueue.js');
 
-var fname = 'positions.bin.2d';// 'positions2d.bin';
+var fname = 'positions2d-size.bin';
 request(fname, {
     responseType: 'arraybuffer',
 })
@@ -16,12 +16,19 @@ request(fname, {
 
 function getVisibleRect() {
   var svg = scene.ownerSVGElement;
+  var buffer = 200;
   var topLeft = svg.createSVGPoint();
+  topLeft.x = -buffer;
+  topLeft.y = -buffer;
+
   var bottomRight = svg.createSVGPoint();
-  bottomRight.x = document.body.clientWidth;
-  bottomRight.y = document.body.clientHeight;
+
+  bottomRight.x = document.body.clientWidth + buffer;
+  bottomRight.y = document.body.clientHeight + buffer;
+
   var inverse = scene.getScreenCTM().inverse();
   bottomRight = bottomRight.matrixTransform(inverse);
+
   topLeft = topLeft.matrixTransform(inverse);
 
   return {
@@ -34,19 +41,17 @@ function getVisibleRect() {
 
 
 function render(tree) {
-  var zoomer = panzoom(scene);
+  var zoomer = panzoom(scene, {
+    speed: 0.01,
+    beforeWheel: _.throttle(renderOnce, 1000)
+  });
   var width = document.body.clientWidth;
   var height = document.body.clientHeight;
-  zoomer.moveBy(width / 2, height / 2);
-
-  var zoomer = panzoom(scene);
   zoomer.moveBy(width / 2, height / 2);
 
   renderOnce();
 
   document.body.addEventListener('panend', function() { renderOnce(); }, true);
-  document.body.addEventListener('zoomend', _.debounce(renderOnce, 100), true);
- 
 
   function renderOnce() {
     var rect = getVisibleRect()
@@ -69,7 +74,8 @@ function rerender(topQuads) {
       cx: quad.x,
       cy: quad.y,
       r: r,
-      stroke: 'black',
+      stroke: 'white',
+      fill: 'white',
       'stroke-width': 1,
     }));
   }
@@ -159,11 +165,11 @@ function initTree(buffer) {
     var positions = new Int32Array(buffer);
     var nodes = [];
 
-    for (var i = 0; i < positions.length; i += 2) {
+    for (var i = 0; i < positions.length; i += 3) {
       nodes.push({
         x: positions[i],
         y: positions[i + 1],
-        r: 5 // rank
+        r: (5 * Math.log(1 + positions[i + 2]))
       });
     }
 
@@ -201,8 +207,8 @@ function accumulateRanks(quad, left, top, right, bottom) {
     }
     quad.largest = largest;
 
-    quad.x = largest.x;
-    quad.y = largest.y;
+    quad.x = largest.data.x;
+    quad.y = largest.data.y;
   } else {
     q = quad;
     var largest = quad;
