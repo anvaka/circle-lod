@@ -29,6 +29,7 @@ function createRenderer(container) {
   var api = eventify({
     render: render,
     getVisibleRect: getVisibleRect,
+    getModelPosFromScreen: getModelPosFromScreen,
     dispose: dispose
   });
 
@@ -58,12 +59,12 @@ function createRenderer(container) {
   }
 
   function updateVisibleRect() {
-    var vFOV = camera.fov * Math.PI / 180;        // convert vertical fov to radians
-    var height = 2 * Math.tan( vFOV / 2 ) * camera.position.z; // visible height
+    var vFOV = camera.fov * Math.PI / 180
+    var height = 2 * Math.tan( vFOV / 2 ) * camera.position.z
 
-    var aspect = window.innerWidth / window.innerHeight;
-    var width = height * aspect;                  // visible width
-    var center = camera.position;
+    var aspect = window.innerWidth / window.innerHeight
+    var width = height * aspect
+    var center = camera.position
 
     visibleRect.left = center.x - width/2;
     visibleRect.right = center.x + width/2;
@@ -83,6 +84,19 @@ function createRenderer(container) {
 
   function getVisibleRect() {
     return visibleRect
+  }
+
+  function getModelPosFromScreen(clientX, clientY) {
+    var width = visibleRect.right - visibleRect.left
+    var currentScale = window.innerWidth/width
+
+    var dx = (clientX - window.innerWidth / 2) / currentScale;
+    var dy = (clientY - window.innerHeight / 2) / currentScale;
+
+    return {
+      x: camera.position.x + dx,
+      y: camera.position.y - dy
+    }
   }
 
   function render(points) {

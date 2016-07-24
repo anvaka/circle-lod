@@ -3,6 +3,7 @@ var request = require('./lib/request.js');
 var maxNodes = 4096;
 var createProrityQueue = require('./lib/priorityQueue.js');
 var createRenderer = require('./renderer.js');
+var labels;
 
 var fname = 'positions2d-size.bin';
 request(fname, {
@@ -11,9 +12,17 @@ request(fname, {
 .then(initTree)
 .then(render);
 
+request('labels.json', {
+    responseType: 'json',
+}).then(function(data) {
+  labels = data;
+});
+
 function render(tree) {
   var renderer = createRenderer(document.body);
+
   renderer.on('positionChanged', renderOnce);
+  document.body.addEventListener('mousemove', onMouseMove);
 
   renderOnce();
 
@@ -21,6 +30,18 @@ function render(tree) {
     var rect = renderer.getVisibleRect()
     var topQuads = getTopQuads(tree, rect);
     renderer.render(topQuads);
+  }
+
+  function onMouseMove(e) {
+    var pos = renderer.getModelPosFromScreen(e.clientX, e.clientY);
+    var dat = tree.find(pos.x, pos.y, 30)
+    if (dat) {
+      if (labels) {
+        console.log(labels[dat.i] + ' - ' + dat.deps);
+      } else {
+        console.log(dat.deps)
+      }
+    }
   }
 }
 
@@ -106,6 +127,8 @@ function initTree(buffer) {
       nodes.push({
         x: positions[i],
         y: positions[i + 1],
+        deps: positions[i + 2],
+        i: i / 3,
         r: (15 * Math.log(1 + positions[i + 2]))
       });
     }
