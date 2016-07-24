@@ -38,9 +38,21 @@ function createRenderer(container) {
   });
 
   updateVisibleRect();
+  window.addEventListener( 'resize', onWindowResize, false );
+
   var lastFrame = requestAnimationFrame(frame);
 
   return api;
+
+  function onWindowResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+
+
+    uniforms.scale.value = window.innerHeight * 0.5;
+
+    renderer.setSize( window.innerWidth, window.innerHeight );
+  }
 
   function updateVisibleRect() {
     var vFOV = camera.fov * Math.PI / 180;        // convert vertical fov to radians
@@ -49,12 +61,12 @@ function createRenderer(container) {
     var aspect = window.innerWidth / window.innerHeight;
     var width = height * aspect;                  // visible width
     var center = camera.position;
+
     visibleRect.left = center.x - width/2;
     visibleRect.right = center.x + width/2;
     visibleRect.top = center.y - height/2;
     visibleRect.bottom = center.y + height/2;
   }
-
 
   function dispose() {
     cancelAnimationFrame(lastFrame);
