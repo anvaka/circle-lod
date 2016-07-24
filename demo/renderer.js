@@ -38,7 +38,7 @@ function createRenderer(container) {
   });
 
   updateVisibleRect();
-  window.addEventListener( 'resize', onWindowResize, false );
+  window.addEventListener('resize', onWindowResize, false);
 
   var lastFrame = requestAnimationFrame(frame);
 
@@ -53,6 +53,7 @@ function createRenderer(container) {
 
     renderer.setSize( window.innerWidth, window.innerHeight );
 
+    updateVisibleRect();
     api.fire('positionChanged', visibleRect)
   }
 
