@@ -19,12 +19,8 @@ function render(tree) {
 
   function renderOnce() {
     var rect = renderer.getVisibleRect()
-    console.time('best search')
     var topQuads = getTopQuads(tree, rect);
-    console.timeEnd('best search')
-    console.time('rerender');
     renderer.render(topQuads);
-    console.timeEnd('rerender');
   }
 }
 

@@ -52,6 +52,8 @@ function createRenderer(container) {
     uniforms.scale.value = window.innerHeight * 0.5;
 
     renderer.setSize( window.innerWidth, window.innerHeight );
+
+    api.fire('positionChanged', visibleRect)
   }
 
   function updateVisibleRect() {

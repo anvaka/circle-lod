@@ -1,15 +1,18 @@
 var wheel = require('wheel')
 var eventify = require('ngraph.events');
+var kinetic = require('./kinetic.js');
 
 module.exports = panzoom;
 
 function panzoom(camera, owner) {
   var isDragging = false
+  var panstartFired = false
   var mousePos = {
     x: 0,
     y: 0
   }
 
+  var smoothScroll = kinetic(getCameraPosition, onSmoothScroll)
   wheel.addWheelListener(owner, onMouseWheel)
 
   var api = eventify({
@@ -20,6 +23,17 @@ function panzoom(camera, owner) {
   owner.addEventListener('mousedown', handleMouseDown)
 
   return api;
+
+  function getCameraPosition() {
+    return camera.position
+  }
+
+  function onSmoothScroll(x, y) {
+    camera.position.x = x;
+    camera.position.y = y;
+
+    api.fire('change');
+  }
 
   function handleMouseDown(e) {
     isDragging = true
@@ -32,8 +46,9 @@ function panzoom(camera, owner) {
   function handleMouseUp() {
     disposeWindowEvents()
     isDragging = false
-  }
 
+    triggerPanEnd()
+  }
 
   function setMousePos(e) {
     mousePos.x = e.clientX;
@@ -43,12 +58,30 @@ function panzoom(camera, owner) {
   function handleMouseMove(e) {
     if (!isDragging) return;
 
+    triggerPanStart()
+
     var dx = e.clientX - mousePos.x;
     var dy = e.clientY - mousePos.y;
 
     panByOffset(dx, dy);
 
     setMousePos(e);
+  }
+
+  function triggerPanStart() {
+    if (!panstartFired) {
+      api.fire('panstart')
+      panstartFired = true
+      smoothScroll.start()
+    }
+  }
+
+  function triggerPanEnd() {
+    if (panstartFired) {
+      panstartFired = false;
+      smoothScroll.stop()
+      api.fire('panend')
+    }
   }
 
   function disposeWindowEvents() {
@@ -58,6 +91,10 @@ function panzoom(camera, owner) {
 
   function dispose() {
     wheel.removeWheelListener(owner, onMouseWheel)
+    disposeWindowEvents()
+
+    smoothScroll.cancel()
+    triggerPanEnd()
   }
 
   function panByOffset(dx, dy) {
@@ -70,6 +107,8 @@ function panzoom(camera, owner) {
   }
 
   function onMouseWheel(e) {
+    smoothScroll.cancel()
+
     var scaleMultiplier = getScaleMultiplier(e.deltaY)
 
     zoomTo(e.clientX, e.clientY, scaleMultiplier)
