@@ -7,6 +7,10 @@ module.exports = panzoom;
 function panzoom(camera, owner) {
   var isDragging = false
   var panstartFired = false
+  var touchInProgress = false
+
+  var pinchZoomLength
+
   var mousePos = {
     x: 0,
     y: 0
@@ -21,8 +25,96 @@ function panzoom(camera, owner) {
   })
 
   owner.addEventListener('mousedown', handleMouseDown)
+  owner.addEventListener('touchstart', onTouch)
 
   return api;
+
+  function onTouch(e) {
+    if (e.touches.length === 1) {
+      return handleSignleFingerTouch(e, e.touches[0])
+    } else if (e.touches.length === 2) {
+      // handleTouchMove() will care about pinch zoom.
+      e.stopPropagation()
+      e.preventDefault()
+
+      pinchZoomLength = getPinchZoomLength(e.touches[1], e.touches[1])
+    }
+  }
+
+  function getPinchZoomLength(finger1, finger2) {
+    return (finger1.clientX - finger2.clientX) * (finger1.clientX - finger2.clientX) +
+      (finger1.clientY - finger2.clientY) * (finger1.clientY - finger2.clientY)
+  }
+
+  function handleSignleFingerTouch(e) {
+    e.stopPropagation()
+    e.preventDefault()
+
+    setMousePos(e.touches[0])
+
+    if (!touchInProgress) {
+      touchInProgress = true
+      window.addEventListener('touchmove', handleTouchMove)
+      window.addEventListener('touchend', handleTouchEnd)
+      window.addEventListener('touchcancel', handleTouchEnd)
+    }
+  }
+
+  function handleTouchMove(e) {
+    triggerPanStart()
+
+    if (e.touches.length === 1) {
+      e.stopPropagation()
+      var touch = e.touches[0]
+
+      var dx = touch.clientX - mousePos.x
+      var dy = touch.clientY - mousePos.y
+
+      setMousePos(touch);
+
+      panByOffset(dx, dy)
+    } else if (e.touches.length === 2) {
+      // it's a zoom, let's find direction
+      var t1 = e.touches[0]
+      var t2 = e.touches[1]
+      var currentPinchLength = getPinchZoomLength(t1, t2)
+
+      var delta = 0
+      if (currentPinchLength < pinchZoomLength) {
+        delta = 1
+      } else if (currentPinchLength > pinchZoomLength) {
+        delta = -1
+      }
+
+      var scaleMultiplier = getScaleMultiplier(delta)
+
+      mousePos.x = (t1.clientX + t2.clientX)/2
+      mousePos.y = (t1.clientY + t2.clientY)/2
+
+      zoomTo(mousePos.x, mousePos.y, scaleMultiplier)
+
+      pinchZoomLength = currentPinchLength
+
+      e.stopPropagation()
+      e.preventDefault()
+    }
+  }
+
+  function handleTouchEnd(e) {
+    if (e.touches.length > 0) {
+      setMousePos(e.touches[0]);
+    } else {
+      touchInProgress = false
+      triggerPanEnd()
+      disposeTouchEvents()
+    }
+  }
+
+  function disposeTouchEvents() {
+    window.removeEventListener('touchmove', handleTouchMove);
+    window.removeEventListener('touchend', handleTouchEnd);
+    window.removeEventListener('touchcancel', handleTouchEnd);
+  }
 
   function getCameraPosition() {
     return camera.position
@@ -37,7 +129,7 @@ function panzoom(camera, owner) {
 
   function handleMouseDown(e) {
     isDragging = true
-    setMousePos(e);
+    setMousePos(e)
 
     window.addEventListener('mouseup', handleMouseUp, true)
     window.addEventListener('mousemove', handleMouseMove, true)
@@ -78,9 +170,9 @@ function panzoom(camera, owner) {
 
   function triggerPanEnd() {
     if (panstartFired) {
-      panstartFired = false;
       smoothScroll.stop()
       api.fire('panend')
+      panstartFired = false;
     }
   }
 
@@ -92,6 +184,7 @@ function panzoom(camera, owner) {
   function dispose() {
     wheel.removeWheelListener(owner, onMouseWheel)
     disposeWindowEvents()
+    disposeTouchEvents()
 
     smoothScroll.cancel()
     triggerPanEnd()
@@ -128,6 +221,7 @@ function panzoom(camera, owner) {
   }
 
   function getCurrentScale() {
+    // TODO: This is the only code that depends on camera. Extract?
     var vFOV = camera.fov * Math.PI / 180
     var height = 2 * Math.tan( vFOV / 2 ) * camera.position.z
     var currentScale = owner.clientHeight / height
