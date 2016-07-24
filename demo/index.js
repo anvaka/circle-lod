@@ -1,11 +1,8 @@
-var svg = require('simplesvg');
-var panzoom = require('panzoom');
 var quadtree = require('d3-quadtree').quadtree;
 var request = require('./lib/request.js');
 var maxNodes = 4096;
-var scene = document.getElementById('scene');
-var _ = require('lodash');
 var createProrityQueue = require('./lib/priorityQueue.js');
+var createRenderer = require('./renderer.js');
 
 var fname = 'positions2d-size.bin';
 request(fname, {
@@ -14,76 +11,20 @@ request(fname, {
 .then(initTree)
 .then(render);
 
-function getVisibleRect() {
-  var svg = scene.ownerSVGElement;
-  var buffer = 200;
-  var topLeft = svg.createSVGPoint();
-  topLeft.x = -buffer;
-  topLeft.y = -buffer;
-
-  var bottomRight = svg.createSVGPoint();
-
-  bottomRight.x = document.body.clientWidth + buffer;
-  bottomRight.y = document.body.clientHeight + buffer;
-
-  var inverse = scene.getScreenCTM().inverse();
-  bottomRight = bottomRight.matrixTransform(inverse);
-
-  topLeft = topLeft.matrixTransform(inverse);
-
-  return {
-    top: topLeft.y,
-    left: topLeft.x,
-    bottom: bottomRight.y,
-    right: bottomRight.x
-  };
-}
-
-
 function render(tree) {
-  var zoomer = panzoom(scene, {
-    speed: 0.01,
-    beforeWheel: _.throttle(renderOnce, 1000)
-  });
-  var width = document.body.clientWidth;
-  var height = document.body.clientHeight;
-  zoomer.moveBy(width / 2, height / 2);
+  var renderer = createRenderer(document.body);
+  renderer.on('positionChanged', renderOnce);
 
   renderOnce();
 
-  document.body.addEventListener('panend', function() { renderOnce(); }, true);
-
   function renderOnce() {
-    var rect = getVisibleRect()
+    var rect = renderer.getVisibleRect()
     console.time('best search')
     var topQuads = getTopQuads(tree, rect);
     console.timeEnd('best search')
-    rerender(topQuads);
-  }
-}
-
-function rerender(topQuads) {
-  clearScene();
-  topQuads.forEach(renderPoint);
-
-  function renderPoint(quad) {
-    var r = Math.sqrt(quad.area / Math.PI);
-    r = Math.max(5, r);
-
-    scene.appendChild(svg('circle', {
-      cx: quad.x,
-      cy: quad.y,
-      r: r,
-      stroke: 'white',
-      fill: 'white',
-      'stroke-width': 1,
-    }));
-  }
-}
-
-function clearScene() {
-  while (scene.firstChild) {
-      scene.removeChild(scene.firstChild);
+    console.time('rerender');
+    renderer.render(topQuads);
+    console.timeEnd('rerender');
   }
 }
 
@@ -169,7 +110,7 @@ function initTree(buffer) {
       nodes.push({
         x: positions[i],
         y: positions[i + 1],
-        r: (5 * Math.log(1 + positions[i + 2]))
+        r: (15 * Math.log(1 + positions[i + 2]))
       });
     }
 
@@ -184,6 +125,7 @@ function y(n) { return n.y; }
 
 function accumulateRanks(quad, left, top, right, bottom) {
   var area = 0, q, i;
+  var largest;
 
   // TODO: This is a bad idea. Either don't use d3's quad tree or find another way.
   quad.left = left;
@@ -194,7 +136,6 @@ function accumulateRanks(quad, left, top, right, bottom) {
   // For internal nodes, accumulate ranks from child quadrants.
   if (quad.length) {
     var maxR = -1;
-    var largest;
 
     for (i = 0; i < 4; ++i) {
       if ((q = quad[i])) {
@@ -206,12 +147,15 @@ function accumulateRanks(quad, left, top, right, bottom) {
       }
     }
     quad.largest = largest;
+    if (!largest) {
+      debugger;
+    }
 
     quad.x = largest.data.x;
     quad.y = largest.data.y;
   } else {
     q = quad;
-    var largest = quad;
+    largest = quad;
 
     do {
       area += Math.PI * q.data.r * q.data.r;
@@ -230,9 +174,11 @@ function accumulateRanks(quad, left, top, right, bottom) {
 
 function quadAreaComparator(a, b) {
   // make sure internal nodes are always larger than leafs.
-  if (b.length && !a.length) {
+  var isAInternal = ('length' in a);
+  var isBInternal = ('length' in b);
+  if (isBInternal && !isAInternal) {
     return false;
-  } else if (a.length && !b.length) {
+  } else if (isAInternal && !isBInternal) {
     return true;
   }
 

@@ -20,8 +20,8 @@
   "devDependencies": {
     "bluebird": "^3.4.1",
     "d3-quadtree": "^1.0.0",
-    "lodash": "^4.13.1",
-    "panzoom": "^1.2.1",
-    "simplesvg": "^0.1.1"
+    "ngraph.events": "0.0.4",
+    "three": "^0.79.0",
+    "wheel": "0.0.4"
   }
 }
