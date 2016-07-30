@@ -5,7 +5,7 @@ var eventify = require('ngraph.events');
 
 module.exports = createRenderer;
 
-function createRenderer(container) {
+function createRenderer(container, groups) {
   var positions, sizes, uniforms;
   var particleSystem;
 
@@ -103,22 +103,33 @@ function createRenderer(container) {
     var geometry = new THREE.BufferGeometry();
     var pointsCount = points.length;
 
-    positions = new Float32Array(pointsCount * 3);
+    positions = new Float32Array(pointsCount * 2);
     sizes = new Float32Array(pointsCount);
+    var colors = new Float32Array(pointsCount * 3);
+
+    var theme = [0x3366cc, 0xdc3912, 0xff9900, 0x109618, 0x990099, 0x0099c6, 0xdd4477, 0x66aa00, 0xb82e2e, 0x316395, 0x994499, 0x22aa99, 0xaaaa11, 0x6633cc, 0xe67300, 0x8b0707, 0x651067, 0x329262, 0x5574a6, 0x3b3eac];
 
     points.forEach(function(p, i) {
-      var idx = i * 3;
+      var idx = i * 2;
       positions[idx] = p.x;
       positions[idx + 1] = p.y;
-      positions[idx + 2] = 0;
 
       var r = Math.sqrt(p.area / Math.PI);
       r = Math.max(5, r);
       sizes[i] = r;
+
+      var nodeId = (p.largest || p).data.i;
+      var group = groups[nodeId];
+      var color = theme[group % theme.length];
+      var colIdx = i * 3;
+      colors[colIdx + 0] = ((color & 0xff0000) >> 16)/255; //color.r; //p.x/16000 + 0.5;
+      colors[colIdx + 1] = ((color & 0x00ff00) >> 8)/255; //color.g; // p.y/16000 + 0.5;
+      colors[colIdx + 2] = ((color & 0x0000ff) >> 0)/255; //0.5;
     })
 
-    geometry.addAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.addAttribute('position', new THREE.BufferAttribute(positions, 2));
     geometry.addAttribute('size', new THREE.BufferAttribute(sizes, 1));
+    geometry.addAttribute('color', new THREE.BufferAttribute(colors, 3));
 
     if (particleSystem) {
       scene.remove(particleSystem);
@@ -130,15 +141,18 @@ function createRenderer(container) {
     scene.add(particleSystem);
   }
 
-
   function vertexShader() {
     return [
+      'attribute vec3 color;',
+      'varying vec3 vColor;',
+
       'attribute float size;',
       'uniform float scale;',
       '',
       'void main() {',
-      '  vec4 mvPosition = modelViewMatrix * vec4( position, 1.0 );',
-      '  gl_PointSize = size * ( scale / - mvPosition.z );',
+      '  vColor = color;',
+      '  vec4 mvPosition = modelViewMatrix * vec4( position.xy, 0.0, 1.0 );',
+      '  gl_PointSize = max(1.0, size * ( scale / - mvPosition.z ));',
       '  gl_Position = projectionMatrix * mvPosition;',
       '}'
     ].join('\n');
@@ -147,11 +161,12 @@ function createRenderer(container) {
   function fragmentShader() {
     return [
       'uniform sampler2D texture;',
+      'varying vec3 vColor;',
       '',
       'void main() {',
       '  vec4 tColor = texture2D( texture, gl_PointCoord );',
       '  if (tColor.a < 0.5) discard;',
-      '  gl_FragColor = vec4( 1. );',
+      '  gl_FragColor = vec4(vColor.rgb, 1. );',
       '}'
     ].join('\n');
   }
