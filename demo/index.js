@@ -1,4 +1,7 @@
 var libInitTree = require('../lib/initTree.js');
+
+var maxNodes = 4096 * 4;
+
 var getTopQuads = require('../lib/getTopQuads.js');
 var request = require('./lib/request.js');
 var _ = require('lodash');
@@ -36,7 +39,7 @@ function render(tree) {
 
   function renderOnce() {
     var rect = renderer.getVisibleRect()
-    var topQuads = getTopQuads(tree, rect);
+    var topQuads = getTopQuads(tree, rect, maxNodes);
 //    var luminanceGrid = getLuminanceGrid(tree, rect, 24, 24);
 
     renderer.render(topQuads);
