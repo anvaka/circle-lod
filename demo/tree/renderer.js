@@ -8,7 +8,7 @@ var rectAContainsB = require('../../lib/rectAContainsB.js');
 module.exports = createRenderer;
 
 function createRenderer(container, getGroup) {
-  var positions, sizes, uniforms;
+  var  uniforms;
   var objects = new Map();
 
   var camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 1500000);
@@ -19,6 +19,7 @@ function createRenderer(container, getGroup) {
   scene.add(camera);
 
   var controls = threePanZoom(camera, container, THREE);
+
   var visibleRect = {
       left: 0,
       top: 0,
@@ -32,7 +33,6 @@ function createRenderer(container, getGroup) {
 
   var api = eventify({
     append: append,
-    //remove: remove,
     getVisibleRect: getVisibleRect,
     getCurrentChunks: getCurrentChunks,
     getModelPosFromScreen: getModelPosFromScreen,
@@ -112,13 +112,13 @@ function createRenderer(container, getGroup) {
   function append(name, chunk) {
     var remove = [];
     objects.forEach(function(oldChunk, name) {
-      if (!rectAIntersectsB(visibleRect, oldChunk.rect)) {
+      if (!rectAIntersectsB(visibleRect, oldChunk.rect) || // oldChunk is no longer visible
+          rectAContainsB(oldChunk.rect, chunk) || // We've got higher-res chunk (zoom in)
+          rectAContainsB(chunk, oldChunk.rect) // lower res chunk was added (zoom out)
+         ) {
         remove.push(name);
         scene.remove(oldChunk.particleSystem);
-      } else if (rectAContainsB(oldChunk.rect, chunk) ||
-                rectAContainsB(chunk, oldChunk.rect)) {
-        remove.push(name);
-        scene.remove(oldChunk.particleSystem);
+        oldChunk.particleSystem.geometry.dispose();
       }
     });
 
@@ -140,8 +140,8 @@ function createRenderer(container, getGroup) {
     var geometry = new THREE.BufferGeometry();
     var pointsCount = points.length;
 
-    positions = new Float32Array(pointsCount * 2);
-    sizes = new Float32Array(pointsCount);
+    var positions = new Float32Array(pointsCount * 2);
+    var sizes = new Float32Array(pointsCount);
     var colors = new Float32Array(pointsCount * 3);
 
     var theme = [0x3366cc, 0xdc3912, 0xff9900, 0x109618, 0x990099, 0x0099c6, 0xdd4477, 0x66aa00, 0xb82e2e, 0x316395, 0x994499, 0x22aa99, 0xaaaa11, 0x6633cc, 0xe67300, 0x8b0707, 0x651067, 0x329262, 0x5574a6, 0x3b3eac];
@@ -165,7 +165,6 @@ function createRenderer(container, getGroup) {
     geometry.addAttribute('size', new THREE.BufferAttribute(sizes, 1));
     geometry.addAttribute('color', new THREE.BufferAttribute(colors, 3));
 
-
     var particleSystem = new THREE.Points(geometry, shaderMaterial);
     particleSystem.frustumCulled = false;
     objects.set(name, {
@@ -174,16 +173,6 @@ function createRenderer(container, getGroup) {
     });
 
     scene.add(particleSystem);
-  }
-
-  function remove(name) {
-    var particleSystem = objects[name];
-    if (particleSystem) {
-      scene.remove(particleSystem);
-      delete objects[name];
-    } else {
-      console.warn('Requested to remove chunk that is not renderer', name);
-    }
   }
 
   function vertexShader() {
