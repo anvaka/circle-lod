@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "browserify ./demo/index.js > ./demo/bundle.js"
+    "start": "browserify ./demo/index.js > ./demo/bundle.js",
+    "tree": "browserify ./demo/tree/index.js > ./demo/tree/bundle.js"
   },
   "keywords": [
     "lod",
@@ -21,6 +22,7 @@
     "bluebird": "^3.4.1",
     "d3-quadtree": "^1.0.0",
     "ngraph.events": "0.0.4",
+    "tap": "^6.2.0",
     "three": "^0.79.0",
     "wheel": "0.0.4"
   }

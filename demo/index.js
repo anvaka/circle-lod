@@ -98,7 +98,7 @@ function getLuminanceGrid(tree, rect, cols, rows) {
       )) return true; // Don't visit, rects do not intersect
 
       if (rectInside(x0, y0, x1, y1, left, top, right, bottom)) {
-        // the entire quad is inside our cell, so we add 
+        // the entire quad is inside our cell, so we add 
         if (q.data) {
           sum += q.data.deps + 1
         }
