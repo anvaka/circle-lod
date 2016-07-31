@@ -21,34 +21,46 @@ root.rect = {
   bottom: tree._root.bottom
 }
 
-appendTo(root, tree._root, '0');
+appendTo(root, tree._root, '0', maxNodes);
 
 fs.writeFileSync(path.join(outFolder, 'tree.json'), JSON.stringify(root), 'utf8')
 console.log('All done');
 
-function appendTo(root, treeNode, path) {
+function appendTo(root, treeNode, path, maxNodes) {
   if (!treeNode.length) {
     throw new Error('Impossible!');
   }
-  saveTopQuads(treeNode, path);
 
+  saveTopQuads(treeNode, path, maxNodes);
+  var hasSiblingWithLessThanMaxNodes = false;
+  var i, q;
 
-  for (var i = 0; i < treeNode.length; ++i) {
-    var q = treeNode[i];
+  for (i = 0; i < treeNode.length; ++i) {
+    q = treeNode[i];
+
+    if (q && q.count <= maxNodes) {
+      hasSiblingWithLessThanMaxNodes = true;
+    }
+  }
+
+  var localNodeLimit = hasSiblingWithLessThanMaxNodes ? maxNodes * 3 : maxNodes;
+  for (i = 0; i < treeNode.length; ++i) {
+    q = treeNode[i];
 
     if (q) {
-      if (q.count > maxNodes) {
+      if (q.count > localNodeLimit) {
+        // the entire quad has more nodes than max allowed nodes. Split it.
         root.children[i] = create(q);
-        appendTo(root.children[i], q, path + i);
+        appendTo(root.children[i], q, path + i, localNodeLimit);
       } else {
-        saveTopQuads(q, path + i);
+        saveTopQuads(q, path + i, localNodeLimit);
         root.children[i] = {};
       }
     }
   }
 }
 
-function saveTopQuads(treeNode, path) {
+function saveTopQuads(treeNode, path, maxNodes) {
   var topQuads = getTopQuads(tree, {
     left: treeNode.left,
     right: treeNode.right,
