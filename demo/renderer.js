@@ -1,6 +1,6 @@
 var THREE = require('three');
 var defaultTexture = require('./defaultTexture.js');
-var threePanZoom = require('./lib/three.panzoom.js');
+var threePanZoom = require('three.map.control');
 var eventify = require('ngraph.events');
 
 module.exports = createRenderer;
@@ -14,7 +14,7 @@ function createRenderer(container, groups) {
   camera.position.z = 1000;
   var scene = new THREE.Scene();
   scene.add(camera);
-  var controls = threePanZoom(camera, container, THREE);
+  var controls = threePanZoom(camera, container);
   var visibleRect = {
       left: 0,
       top: 0,
