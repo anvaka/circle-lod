@@ -3,13 +3,11 @@ var createRenderer = require('./renderer.js');
 var collectPaths = require('../../lib/collectPaths.js');
 var getRectFromName = require('../../lib/getRectFromName.js');
 var groups;
-var labels;
 var tree;
 
 var renderer = createRenderer(document.body, getGroup)
 renderer.on('positionChanged', update);
 
-//var currentChunks = new Set();
 var pendingLoad = new Set();
 request('data/tree.json', {responseType: 'json'}).then(function(jsonTree) {
   tree = jsonTree;
@@ -19,7 +17,7 @@ request('data/tree.json', {responseType: 'json'}).then(function(jsonTree) {
   });
 })
 
-request('groups.yt.bin', {responseType: 'arraybuffer'}).then(function(g) {
+request('groups.bin', {responseType: 'arraybuffer'}).then(function(g) {
   groups = new Int16Array(g);
   if (tree) {
     update(renderer.getVisibleRect());

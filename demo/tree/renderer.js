@@ -13,12 +13,12 @@ function createRenderer(container, getGroup) {
 
   var camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 1500000);
 
-  camera.position.z = 1274397;
-
   var scene = new THREE.Scene();
   scene.add(camera);
 
   var controls = threePanZoom(camera, container);
+  controls.max = 1300000; // TODO: This should depend on rect
+  camera.position.z = controls.max;
 
   var visibleRect = {
       left: 0,
