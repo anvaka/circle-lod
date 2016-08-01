@@ -2,10 +2,15 @@ var request = require('../lib/request.js');
 var createRenderer = require('./renderer.js');
 var collectPaths = require('../../lib/collectPaths.js');
 var getRectFromName = require('../../lib/getRectFromName.js');
+var youtubeClient = require('./lib/youtubeClient.js')(request);
 var groups;
 var tree;
+var labels;
+var pendingChannelRequest;
+var _ = require('lodash');
 
 var renderer = createRenderer(document.body, getGroup)
+renderer.on('hover', showLabel);
 renderer.on('positionChanged', update);
 
 var pendingLoad = new Set();
@@ -24,9 +29,29 @@ request('groups.bin', {responseType: 'arraybuffer'}).then(function(g) {
   }
 });
 
-// request('labels.yt.json', {responseType: 'json'}).then(function(data) {
-//   labels = data;
-// });
+request('labels.json', {responseType: 'json'}).then(function(data) {
+  labels = data;
+});
+
+function showLabel(p) {
+  if (pendingChannelRequest) {
+    pendingChannelRequest.cancel();
+    pendingChannelRequest = null;
+  }
+
+  if (!labels || !p) {
+    return;
+  }
+
+  var channelId = labels[p.id];
+
+  pendingChannelRequest = _.debounce(function() {
+    youtubeClient.getChannelInfo(channelId).then(function(info) {
+      console.log(info);
+    });
+  }, 300);
+  pendingChannelRequest();
+}
 
 function update(cameraRect) {
   var paths = collectPaths({

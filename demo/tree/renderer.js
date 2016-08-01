@@ -4,12 +4,17 @@ var threePanZoom = require('three.map.control');
 var eventify = require('ngraph.events');
 var rectAIntersectsB = require('../../lib/rectAIntersectsB.js');
 var rectAContainsB = require('../../lib/rectAContainsB.js');
+var createQuadTree = require('d3-quadtree').quadtree;
+var _ = require('lodash');
 
 module.exports = createRenderer;
 
 function createRenderer(container, getGroup) {
   var  uniforms;
   var objects = new Map();
+  var tree;
+  var lastHover;
+  var updateQuadTreeDebounced = _.debounce(updateQuadTree, 300);
 
   var camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 1500000);
 
@@ -46,10 +51,22 @@ function createRenderer(container, getGroup) {
 
   updateVisibleRect();
   window.addEventListener('resize', onWindowResize, false);
+  container.addEventListener('mousemove', onMouseMove);
 
   var lastFrame = requestAnimationFrame(frame);
 
   return api;
+
+  function onMouseMove(e) {
+    if (!tree) return;
+
+    var pos = getModelPosFromScreen(e.clientX, e.clientY);
+    var dat = tree.find(pos.x, pos.y, 30);
+    if (dat !== lastHover) {
+      api.fire('hover', dat);
+      lastHover = dat;
+    }
+  }
 
   function getCurrentChunks() {
     return objects;
@@ -173,6 +190,18 @@ function createRenderer(container, getGroup) {
     });
 
     scene.add(particleSystem);
+    updateQuadTreeDebounced();
+  }
+
+  function updateQuadTree() {
+    var points = [];
+    objects.forEach(function(object) {
+      object.rect.points.forEach(function(point) {
+        points.push(point);
+      });
+    })
+
+    tree = createQuadTree(points, x, y);
   }
 
   function vertexShader() {
@@ -236,4 +265,12 @@ function createRenderer(container, getGroup) {
 
     return renderer;
   }
+}
+
+function x(p) {
+  return p.x;
+}
+
+function y(p) {
+  return p.y;
 }
