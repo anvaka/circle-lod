@@ -1,4 +1,5 @@
 var libInitTree = require('../lib/initTree.js');
+var initNodes = require('../lib/initNodes.js');
 
 var maxNodes = 4096 * 4;
 
@@ -131,6 +132,7 @@ function intersectRect(aLeft, aTop, aRight, aBottom,
 
 function initTree(buffer) {
   var positions = new Int32Array(buffer);
-  return libInitTree(positions);
+  var nodes = initNodes(positions);
+  return libInitTree(nodes);
 }
 

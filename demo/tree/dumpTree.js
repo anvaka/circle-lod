@@ -1,17 +1,18 @@
 var initTree = require('../../lib/initTree.js');
+var initNodes = require('../../lib/initNodes.js');
 var getTopQuads = require('../../lib/getTopQuads.js');
 var fs = require('fs');
 var path = require('path');
 
 var outFolder = path.join(__dirname, 'data');
 
-var fname = process.argv[2] || path.join(__dirname, '..', 'positions-s.yt.2d.bin');
+var fname = process.argv[2] || path.join(__dirname, '..', 'positions.yt.2d.bin');
 var buffer = toArrayBuffer(fs.readFileSync(fname));
 
 var maxNodes = 4096;
 var positions = new Int32Array(buffer);
 
-var tree = initTree(positions);
+var tree = initTree(initNodes(positions));
 
 var root = create(tree._root);
 root.rect = {
