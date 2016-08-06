@@ -11,8 +11,9 @@ var buffer = toArrayBuffer(fs.readFileSync(fname));
 var positions = new Int32Array(buffer);
 
 var src = initNodes(positions);
-var layers = initCollapseTree(positions);
-var tree = layers[0].tree;
+var rankInfo = initCollapseTree(positions);
+var tree = rankInfo.tree;
+var levels = rankInfo.levels;
 
 var root = create(tree._root);
 root.rect = {
@@ -22,21 +23,16 @@ root.rect = {
   bottom: tree._root.bottom
 }
 
-debugger;
 appendTo(root, tree._root, '0');
-
 
 fs.writeFileSync(path.join(outFolder, 'tree.json'), JSON.stringify(root), 'utf8')
 console.log('All done');
 
 function appendTo(root, treeNode, path) {
-  // if (!treeNode.length) {
-  //   throw new Error('Impossible!');
-  // }
 
   saveTopQuads(treeNode, path);
 
-  if (path.length < layers.length - 1) {
+  if (path.length < levels.length) {
     for (var i = 0; i < treeNode.length; ++i) {
       var q = treeNode[i];
 
@@ -50,9 +46,12 @@ function appendTo(root, treeNode, path) {
 }
 
 function saveTopQuads(treeNode, path) {
-  var layerTree = layers[layers.length - path.length].tree;
-  var topQuads = getTopQuads(layerTree, treeNode);
-  savePositions(getName(path), topQuads);
+  var levelIndex = levels.length - path.length;
+  var level = levels[levelIndex];
+  if (!level) throw new Error('no level provided for ' + levelIndex);
+
+  var visibleNodes = findVisibleNodesOnLevelInRect(level, treeNode);
+  savePositions(getName(path), visibleNodes);
 }
 
 
@@ -60,8 +59,8 @@ function getName(localName) {
   return path.join(outFolder, localName + '.bin');
 }
 
-function getTopQuads(tree, rect) {
-  var quads = [];
+function findVisibleNodesOnLevelInRect(level, rect) {
+  var visibleNodes = [];
 
   tree.visit(function(node, left, top, right, bottom) {
     if (!rectAIntersectsB(rect, {
@@ -69,17 +68,25 @@ function getTopQuads(tree, rect) {
       top: top,
       right: right,
       bottom: bottom
-    })) return true;
+    })) {
+      // this quad does not even intersect our rect. no need to traverse further
+      return true;
+    }
 
     if (!node.length) {
+      // okay, this is not intermediate node. Just check that it belongs to
+      // this level and add it:
       var q = node;
       do {
-        quads.push(q.data);
+        var nodeId = q.data.i;
+        if (nodeId === undefined) throw new Error('id should be defined at this point');
+
+        if (level.has(nodeId)) visibleNodes.push(q.data);
       } while(q = q.next);
     }
   });
 
-  return quads;
+  return visibleNodes;
 }
 
 function savePositions(name, positions) {
