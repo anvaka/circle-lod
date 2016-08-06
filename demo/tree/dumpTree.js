@@ -6,7 +6,7 @@ var path = require('path');
 
 var outFolder = path.join(__dirname, 'data');
 
-var fname = process.argv[2] || path.join(__dirname, '..', 'positions.yt.2d.bin');
+var fname = process.argv[2] || path.join(__dirname, '..', 'positions-s.yt.2d.bin');
 var buffer = toArrayBuffer(fs.readFileSync(fname));
 
 var maxNodes = 4096;
