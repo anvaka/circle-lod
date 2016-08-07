@@ -1,10 +1,23 @@
 var initCollapseTree = require('../../lib/initCollapseTree.js');
 var initNodes = require('../../lib/initNodes.js');
 var rectAIntersectsB = require('../../lib/rectAIntersectsB.js');
+var mkdirp = require('mkdirp');
 
 var fs = require('fs');
 var path = require('path');
 var outFolder = path.join(__dirname, 'data');
+
+var positionsFolder = path.join(outFolder, 'positions');
+mkdirp.sync(positionsFolder);
+
+var labelsFolder = path.join(outFolder, 'labels');
+mkdirp.sync(labelsFolder);
+
+var labelsFileName = path.join(__dirname, 'labels.json');
+var labelsText = fs.readFileSync(labelsFileName, 'utf8');
+
+// TODO: This will not scale to many millions (node had cap of ~300MB?)
+var labels = JSON.parse(labelsText);
 
 var fname = process.argv[2] || path.join(__dirname, '..', 'positions-s.yt.2d.bin');
 var buffer = toArrayBuffer(fs.readFileSync(fname));
@@ -51,13 +64,10 @@ function saveTopQuads(treeNode, path) {
   if (!level) throw new Error('no level provided for ' + levelIndex);
 
   var visibleNodes = findVisibleNodesOnLevelInRect(level, treeNode);
-  savePositions(getName(path), visibleNodes);
+  saveQuad(path, visibleNodes);
 }
 
 
-function getName(localName) {
-  return path.join(outFolder, localName + '.bin');
-}
 
 function findVisibleNodesOnLevelInRect(level, rect) {
   var visibleNodes = [];
@@ -89,25 +99,43 @@ function findVisibleNodesOnLevelInRect(level, rect) {
   return visibleNodes;
 }
 
-function savePositions(name, positions) {
-  console.log('saving ' + name);
+function saveQuad(name, quadElements) {
+  savePositions(name, quadElements)
+  saveLabels(name, quadElements)
+}
 
-  var buf = new Buffer(positions.length * 4 * 4);
+function saveLabels(name, quadElements) {
+  var labelsFileName = path.join(labelsFolder, name + '.json');
+  console.log('saving ' + labelsFileName);
+  var labelsInQuad = Object.create(null);
 
-  positions.forEach(function(p, i) {
+  quadElements.forEach(function(quad) {
+    labelsInQuad[quad.i] = labels[quad.i];
+  });
+
+  fs.writeFileSync(labelsFileName, JSON.stringify(labelsInQuad), 'utf8');
+}
+
+function savePositions(name, quadElements) {
+  var positionFileName = path.join(positionsFolder, name + '.bin');
+  console.log('saving ' + positionFileName);
+
+  var buf = new Buffer(quadElements.length * 4 * 4);
+
+  quadElements.forEach(function(quad, i) {
     var idx = i * 4 * 4;
-    var node = src[p.i];
-    var nodeId = p.i;
+    var node = src[quad.i];
+    var nodeId = quad.i;
 
     var area = Math.PI * node.r * node.r;
 
     buf.writeInt32LE(nodeId, idx);
-    buf.writeInt32LE(p.x, idx + 4);
-    buf.writeInt32LE(p.y, idx + 8);
+    buf.writeInt32LE(quad.x, idx + 4);
+    buf.writeInt32LE(quad.y, idx + 8);
     buf.writeInt32LE(Math.round(area), idx + 12);
   });
 
-  fs.writeFileSync(name, buf);
+  fs.writeFileSync(positionFileName, buf);
 }
 
 function create(q) {
