@@ -1,6 +1,8 @@
 var initCollapseTree = require('../../lib/initCollapseTree.js');
 var initNodes = require('../../lib/initNodes.js');
 var rectAIntersectsB = require('../../lib/rectAIntersectsB.js');
+var binaryDumpTreeUtils = require('../../lib/binaryDumpTree.js');
+
 var mkdirp = require('mkdirp');
 
 var fs = require('fs');
@@ -38,7 +40,7 @@ root.rect = {
 
 appendTo(root, tree._root, '0');
 
-fs.writeFileSync(path.join(outFolder, 'tree.json'), JSON.stringify(root), 'utf8')
+saveTreeIndex(root);
 console.log('All done');
 
 function appendTo(root, treeNode, path) {
@@ -56,6 +58,26 @@ function appendTo(root, treeNode, path) {
       }
     }
   }
+}
+
+function saveTreeIndex(root) {
+  var uint32Array = binaryDumpTreeUtils.binaryEncodeTree(root);
+  // 4 int 32 for left/top/right/bottom
+  var bufferSize = (4 + uint32Array.length) * 4;
+  var treeBuffer = Buffer.alloc(bufferSize);
+
+  var offset = 0;
+  treeBuffer.writeInt32LE(root.rect.left, offset); offset += 4;
+  treeBuffer.writeInt32LE(root.rect.top, offset); offset += 4;
+  treeBuffer.writeInt32LE(root.rect.right, offset); offset += 4;
+  treeBuffer.writeInt32LE(root.rect.bottom, offset); offset += 4;
+
+  for (var i = 0; i < uint32Array.length; ++i) {
+    treeBuffer.writeUInt32LE(uint32Array[i], offset);
+    offset += 4;
+  }
+
+  fs.writeFileSync(path.join(outFolder, 'tree.bin'), treeBuffer);
 }
 
 function saveTopQuads(treeNode, path) {
@@ -100,6 +122,7 @@ function findVisibleNodesOnLevelInRect(level, rect) {
 }
 
 function saveQuad(name, quadElements) {
+  return;
   savePositions(name, quadElements)
   saveLabels(name, quadElements)
 }
