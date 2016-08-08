@@ -89,8 +89,6 @@ function saveTopQuads(treeNode, path) {
   saveQuad(path, visibleNodes);
 }
 
-
-
 function findVisibleNodesOnLevelInRect(level, rect) {
   var visibleNodes = [];
 
@@ -122,7 +120,6 @@ function findVisibleNodesOnLevelInRect(level, rect) {
 }
 
 function saveQuad(name, quadElements) {
-  return;
   savePositions(name, quadElements)
   saveLabels(name, quadElements)
 }
