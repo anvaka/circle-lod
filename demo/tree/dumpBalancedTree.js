@@ -1,21 +1,18 @@
 var initCollapseTree = require('../../lib/initCollapseTree.js');
 var initNodes = require('../../lib/initNodes.js');
 var rectAIntersectsB = require('../../lib/rectAIntersectsB.js');
-var binaryDumpTreeUtils = require('../../lib/binaryDumpTree.js');
 
-var mkdirp = require('mkdirp');
+var createQuadFS = require('./quadFS.js');
 
 var fs = require('fs');
 var path = require('path');
 var outFolder = path.join(__dirname, 'data');
+var quadFS = createQuadFS(outFolder);
 
-var positionsFolder = path.join(outFolder, 'positions');
-mkdirp.sync(positionsFolder);
+var positionsLayer = quadFS.createLayer('positions');
+var labelsLayer = quadFS.createLayer('labels');
 
-var labelsFolder = path.join(outFolder, 'labels');
-mkdirp.sync(labelsFolder);
-
-var labelsFileName = path.join(__dirname, 'labels.json');
+var labelsFileName = path.join(__dirname, '..', 'labels.json');
 var labelsText = fs.readFileSync(labelsFileName, 'utf8');
 
 // TODO: This will not scale to many millions (node had cap of ~300MB?)
@@ -40,44 +37,21 @@ root.rect = {
 
 appendTo(root, tree._root, '0');
 
-saveTreeIndex(root);
+quadFS.saveTreeIndex(root);
 console.log('All done');
 
 function appendTo(root, treeNode, path) {
-
   saveTopQuads(treeNode, path);
 
   if (path.length < levels.length) {
     for (var i = 0; i < treeNode.length; ++i) {
-      var q = treeNode[i];
-
-      if (q) {
-        // the entire quad has more nodes than max allowed nodes. Split it.
-        root.children[i] = create(q);
-        appendTo(root.children[i], q, path + i);
+      var node = treeNode[i];
+      if (node) {
+        root.children[i] = create(node);
+        appendTo(root.children[i], node, path + i);
       }
     }
   }
-}
-
-function saveTreeIndex(root) {
-  var uint32Array = binaryDumpTreeUtils.binaryEncodeTree(root);
-  // 4 int 32 for left/top/right/bottom
-  var bufferSize = (4 + uint32Array.length) * 4;
-  var treeBuffer = Buffer.alloc(bufferSize);
-
-  var offset = 0;
-  treeBuffer.writeInt32LE(root.rect.left, offset); offset += 4;
-  treeBuffer.writeInt32LE(root.rect.top, offset); offset += 4;
-  treeBuffer.writeInt32LE(root.rect.right, offset); offset += 4;
-  treeBuffer.writeInt32LE(root.rect.bottom, offset); offset += 4;
-
-  for (var i = 0; i < uint32Array.length; ++i) {
-    treeBuffer.writeUInt32LE(uint32Array[i], offset);
-    offset += 4;
-  }
-
-  fs.writeFileSync(path.join(outFolder, 'tree.bin'), treeBuffer);
 }
 
 function saveTopQuads(treeNode, path) {
@@ -85,12 +59,15 @@ function saveTopQuads(treeNode, path) {
   var level = levels[levelIndex];
   if (!level) throw new Error('no level provided for ' + levelIndex);
 
-  var visibleNodes = findVisibleNodesOnLevelInRect(level, treeNode);
+  var nextLevel = levelIndex === 0 ? level : levels[levelIndex - 1];
+
+  var visibleNodes = findVisibleNodesOnLevelInRect(level, treeNode, path, nextLevel);
   saveQuad(path, visibleNodes);
 }
 
-function findVisibleNodesOnLevelInRect(level, rect) {
+function findVisibleNodesOnLevelInRect(level, rect, path, nextLevel) {
   var visibleNodes = [];
+  var visibleOnNextLevelCount = 0
 
   tree.visit(function(node, left, top, right, bottom) {
     if (!rectAIntersectsB(rect, {
@@ -103,6 +80,7 @@ function findVisibleNodesOnLevelInRect(level, rect) {
       return true;
     }
 
+
     if (!node.length) {
       // okay, this is not intermediate node. Just check that it belongs to
       // this level and add it:
@@ -111,10 +89,20 @@ function findVisibleNodesOnLevelInRect(level, rect) {
         var nodeId = q.data.i;
         if (nodeId === undefined) throw new Error('id should be defined at this point');
 
-        if (level.has(nodeId)) visibleNodes.push(q.data);
+        if (level.has(nodeId)) {
+          visibleNodes.push(q.data);
+        } else if (nextLevel.has(nodeId)) {
+          visibleOnNextLevelCount += 1;
+        }
       } while(q = q.next);
     }
   });
+
+  console.log('path: ' + path
+              + ', visible in rect: ' + visibleNodes.length
+              + ', visible on next: ' + visibleOnNextLevelCount
+              + 'ratio this/next: ' + visibleNodes.length/visibleOnNextLevelCount
+             );
 
   return visibleNodes;
 }
@@ -125,24 +113,25 @@ function saveQuad(name, quadElements) {
 }
 
 function saveLabels(name, quadElements) {
-  var labelsFileName = path.join(labelsFolder, name + '.json');
-  console.log('saving ' + labelsFileName);
   var labelsInQuad = Object.create(null);
 
   quadElements.forEach(function(quad) {
     labelsInQuad[quad.i] = labels[quad.i];
   });
 
-  fs.writeFileSync(labelsFileName, JSON.stringify(labelsInQuad), 'utf8');
+  labelsLayer.saveJSONQuad(name, labelsInQuad);
 }
 
 function savePositions(name, quadElements) {
-  var positionFileName = path.join(positionsFolder, name + '.bin');
-  console.log('saving ' + positionFileName);
-
   var buf = new Buffer(quadElements.length * 4 * 4);
 
-  quadElements.forEach(function(quad, i) {
+  quadElements.forEach(serializePositionToBuffer);
+
+  positionsLayer.saveBinaryQuad(name, buf);
+
+  return;
+
+  function serializePositionToBuffer(quad, i) {
     var idx = i * 4 * 4;
     var node = src[quad.i];
     var nodeId = quad.i;
@@ -153,9 +142,7 @@ function savePositions(name, quadElements) {
     buf.writeInt32LE(quad.x, idx + 4);
     buf.writeInt32LE(quad.y, idx + 8);
     buf.writeInt32LE(Math.round(area), idx + 12);
-  });
-
-  fs.writeFileSync(positionFileName, buf);
+  }
 }
 
 function create(q) {
