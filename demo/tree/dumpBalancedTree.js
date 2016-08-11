@@ -38,6 +38,7 @@ root.rect = {
 appendTo(root, tree._root, '0');
 
 quadFS.saveTreeIndex(root);
+quadFS.flushAllQuads();
 console.log('All done');
 
 function appendTo(root, treeNode, path) {
@@ -101,7 +102,7 @@ function findVisibleNodesOnLevelInRect(level, rect, path, nextLevel) {
   console.log('path: ' + path
               + ', visible in rect: ' + visibleNodes.length
               + ', visible on next: ' + visibleOnNextLevelCount
-              + 'ratio this/next: ' + visibleNodes.length/visibleOnNextLevelCount
+              + ', ratio this/next: ' + visibleNodes.length/visibleOnNextLevelCount
              );
 
   return visibleNodes;
