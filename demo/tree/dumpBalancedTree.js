@@ -9,7 +9,7 @@ var path = require('path');
 var outFolder = path.join(__dirname, 'data');
 var quadFS = createQuadFS(outFolder);
 
-var positionsLayer = quadFS.createLayer('positions');
+var positionsLayer = quadFS.positionsLayer;
 var labelsLayer = quadFS.createLayer('labels');
 
 var labelsFileName = path.join(__dirname, '..', 'labels.json');
@@ -38,7 +38,6 @@ root.rect = {
 appendTo(root, tree._root, '0');
 
 quadFS.saveTreeIndex(root);
-quadFS.flushAllQuads();
 console.log('All done');
 
 function appendTo(root, treeNode, path) {
