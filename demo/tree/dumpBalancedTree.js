@@ -158,5 +158,6 @@ function toArrayBuffer(buffer) {
     for (var i = 0; i < buffer.length; ++i) {
         view[i] = buffer[i];
     }
+
     return ab;
 }

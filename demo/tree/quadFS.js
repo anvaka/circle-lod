@@ -94,39 +94,50 @@ function createQuadFS(quadFSDir) {
 
       function serializeBuffersSubtree(quad) {
         var childrenCount = getChildrenCount(quad)
-        // we use 4 bytes per children to store their children, just to keep
-        // binary data aligned with int32:
-        var result = new Buffer(childrenCount * 4 + quad.childrenByteLength + quad.selfByteLength)
-        writeAtOffset(quad, 0);
+        // The head of the buffer contains offsets information.
+        // Count of children (including self) - 4 bytes,
+        // [
+        // tuple:
+        //   - encodedBinary quad name - 4 bytes,
+        //   - offset where quad buffer is written - 4 bytes
+        // ...
+        // ],
+        // giant blob of buffers concatenated together. To find buffer's size
+        // just substruct its offset from the previous offset.
+        var indexLength = childrenCount * 2 * 4;
+        var result = new Buffer(4 + indexLength + quad.childrenByteLength + quad.selfByteLength)
+
+        result.writeInt32LE(indexLength, 0); // how big is the index.
+
+        var currentIndexOffset = 4;
+        var currentBufferOffset = indexLength + 4;
+
+        writeAtOffset(quad);
+
         return result;
 
-        function writeAtOffset(quad, offset) {
-          var childrenRecord = 0;
-          var i;
-          for (i = 0; i < 4; ++i) {
-            if (quad[i]) childrenRecord |= (1 << i)
+        function writeAtOffset(quad) {
+          var encodedName = encodeQuadNameToBinary(quad.name);
+
+          result.writeInt32LE(encodedName, currentIndexOffset); currentIndexOffset += 4;
+          result.writeInt32LE(currentBufferOffset, currentIndexOffset); currentIndexOffset += 4;
+
+          quad.buffer.copy(result, currentBufferOffset); // store this quad into destination
+          currentBufferOffset += quad.buffer.byteLength;
+
+          for (var i = 0; i < 4; ++i) {
+            if (quad[i]) writeAtOffset(quad[i]);
           }
-
-          result.writeInt32LE(childrenRecord, offset);
-          quad.buffer.copy(result, offset + 4); // store this quad into destination
-
-          offset += quad.buffer.byteLength + 4;
-
-          for (i = 0; i < 4; ++i) {
-            if (quad[i]) offset = writeAtOffset(quad[i], offset);
-          }
-
-          return offset;
         }
       }
 
       function getChildrenCount(quad) {
-        var count = 0;
+        var count = 1;
         for (var i = 0; i < 4; ++i) {
           if(quad[i]) count += getChildrenCount(quad[i]);
         }
 
-        return count + 1;
+        return count;
       }
 
       function collectTerminalLayersAndFlushLeaves(startFrom) {
