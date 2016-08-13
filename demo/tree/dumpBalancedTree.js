@@ -9,9 +9,6 @@ var path = require('path');
 var outFolder = path.join(__dirname, 'data');
 var quadFS = createQuadFS(outFolder);
 
-var positionsLayer = quadFS.positionsLayer;
-var labelsLayer = quadFS.createLayer('labels');
-
 var labelsFileName = path.join(__dirname, '..', 'labels.json');
 var labelsText = fs.readFileSync(labelsFileName, 'utf8');
 
@@ -36,8 +33,8 @@ root.rect = {
 }
 
 appendTo(root, tree._root, '0');
-
 quadFS.saveTreeIndex(root);
+
 console.log('All done');
 
 function appendTo(root, treeNode, path) {
@@ -108,40 +105,28 @@ function findVisibleNodesOnLevelInRect(level, rect, path, nextLevel) {
 }
 
 function saveQuad(name, quadElements) {
-  savePositions(name, quadElements)
-  saveLabels(name, quadElements)
-}
-
-function saveLabels(name, quadElements) {
+  var serializedPositions = new Buffer(quadElements.length * 4 * 4);
   var labelsInQuad = Object.create(null);
-
-  quadElements.forEach(function(quad) {
-    labelsInQuad[quad.i] = labels[quad.i];
-  });
-
-  labelsLayer.saveJSONQuad(name, labelsInQuad);
-}
-
-function savePositions(name, quadElements) {
-  var buf = new Buffer(quadElements.length * 4 * 4);
 
   quadElements.forEach(serializePositionToBuffer);
 
-  positionsLayer.saveBinaryQuad(name, buf);
+  quadFS.appendQuad(name, serializedPositions, labelsInQuad);
 
   return;
 
   function serializePositionToBuffer(quad, i) {
+    labelsInQuad[quad.i] = labels[quad.i];
+
     var idx = i * 4 * 4;
     var node = src[quad.i];
     var nodeId = quad.i;
 
     var area = Math.PI * node.r * node.r;
 
-    buf.writeInt32LE(nodeId, idx);
-    buf.writeInt32LE(quad.x, idx + 4);
-    buf.writeInt32LE(quad.y, idx + 8);
-    buf.writeInt32LE(Math.round(area), idx + 12);
+    serializedPositions.writeInt32LE(nodeId, idx);
+    serializedPositions.writeInt32LE(quad.x, idx + 4);
+    serializedPositions.writeInt32LE(quad.y, idx + 8);
+    serializedPositions.writeInt32LE(Math.round(area), idx + 12);
   }
 }
 
