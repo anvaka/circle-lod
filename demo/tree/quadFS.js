@@ -161,7 +161,7 @@ function createQuadFS(quadFSDir) {
       // giant blob of buffers concatenated together. To find buffer's size
       // just substruct its offset from the previous offset.
       var indexLength = childrenCount * 2 * 4;
-      var result = new Buffer(4 + indexLength + quad.childrenByteLength + quad.selfByteLength)
+      var result = new Buffer(4 + indexLength + quad.childrenByteLength)
 
       result.writeInt32LE(indexLength, 0); // how big is the index.
 
