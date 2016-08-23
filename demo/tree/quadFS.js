@@ -67,6 +67,7 @@ function createQuadFS(quadFSDir) {
     var byteLength = buffer.byteLength;
 
     quad.childrenByteLength += byteLength;
+    saveQuadIfNeeded(quad);
 
     for (var i = 1; i < quadName.length; ++i) {
       var quadId = quadName[i];
@@ -83,7 +84,7 @@ function createQuadFS(quadFSDir) {
       }
 
       quad = child;
-      saveQuadIfNeeded(child)
+      saveQuadIfNeeded(child);
     }
 
     quad.selfByteLength = byteLength;
@@ -178,6 +179,7 @@ function createQuadFS(quadFSDir) {
         result.writeInt32LE(encodedName, currentIndexOffset); currentIndexOffset += 4;
         result.writeInt32LE(currentBufferOffset, currentIndexOffset); currentIndexOffset += 4;
 
+        if (quad.buffer === null) debugger;
         quad.buffer.copy(result, currentBufferOffset); // store this quad into destination
         currentBufferOffset += quad.buffer.byteLength;
 
